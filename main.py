@@ -1,34 +1,37 @@
 from fastapi import FastAPI
 
-from app.api.v1.applications import router as applications_router
+from app.api.router import api_router
 
 
 app = FastAPI(
-    title="Job Application Tracker API",
-    description="Full-stack job application tracker using FastAPI and MongoDB",
+    title="AI Job Application Tracker",
+    description=(
+        "Full Stack Generative AI and Agentic AI "
+        "Job Application Tracking Platform"
+    ),
     version="0.1.0",
 )
 
 
 app.include_router(
-    applications_router,
+    api_router,
     prefix="/api/v1",
 )
 
 
-@app.get("/")
+@app.get("/", tags=["Root"])
 async def root() -> dict[str, str]:
     return {
-        "message": "Job Application Tracker API",
+        "message": "AI Job Application Tracker API",
         "status": "running",
         "docs": "/docs",
     }
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", tags=["Health"])
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
-        "service": "job-application-tracker",
-        "database": "MongoDB",
+        "service": "AI Job Application Tracker",
+        "database": "job_application_tracker",
     }

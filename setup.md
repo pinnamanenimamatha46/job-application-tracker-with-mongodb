@@ -1026,4 +1026,879 @@ class JobApplicationRepository:
 job_application_repository = JobApplicationRepository()
 
 
-## step-28:
+## step-28: Update the API routes
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, status
+
+from app.repositories.application_repository import job_application_repository
+from app.schemas.application import JobApplicationCreate
+
+
+router = APIRouter(
+    prefix="/applications",
+    tags=["Applications"],
+)
+
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_application(
+    application: JobApplicationCreate,
+) -> dict[str, Any]:
+    try:
+        return await job_application_repository.create(application)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to create job application.",
+        ) from exc
+
+
+@router.get("")
+async def list_applications() -> list[dict[str, Any]]:
+    return await job_application_repository.get_all()
+
+
+@router.get("/{application_id}")
+async def get_application(
+    application_id: str,
+) -> dict[str, Any]:
+    application = await job_application_repository.get_by_id(application_id)
+
+    if application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found.",
+        )
+
+    return application
+
+## step-29: Test list-all endpoint
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/applications"
+
+## Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/applications" |
+    ConvertTo-Json -Depth 10
+
+## step-30: Test get-by-ID endpoint:
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/applications/6a61066f8be4212c4ca7cd2b"
+
+## Test 1 – List all applications
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/applications" |
+    ConvertTo-Json -Depth 10
+
+## Test 2 – Get one application
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/applications/6a61066f8be4212c4ca7cd2b" |
+    ConvertTo-Json -Depth 10
+
+## step-31: Verify directly in MongoDB Shell:
+
+mongosh "mongodb://localhost:27017/job_application_tracker"
+job_application_tracker> show collections
+applications
+job_applications
+system_check
+job_application_tracker> db.job_applications.find().pretty()
+[
+  {
+    _id: ObjectId('6a61066f8be4212c4ca7cd2b'),
+    company: 'Microsoft',
+    position: 'AI Software Engineer',
+    job_url: 'https://careers.microsoft.com/',
+    location: 'Redmond, WA',
+    work_mode: 'hybrid',
+    status: 'applied',
+    applied_date: '2026-07-22',
+    salary_range: '$140,000-$180,000',
+    skills: [ 'Python', 'FastAPI', 'Azure', 'Docker', 'AI' ],
+    job_description: 'Develop AI-powered enterprise applications.',
+    notes: 'Applied through Microsoft Careers.',
+    resume_version: 'Resume-v1',
+    created_at: ISODate('2026-07-22T18:05:35.707Z'),
+    updated_at: ISODate('2026-07-22T18:05:35.707Z')
+  }
+]
+job_application_tracker> exit
+
+## step-32: Commit the CRUD API
+git add .
+git commit -m "Add CRUD API for job applications using FastAPI and MongoDB"
+git push origin main
+
+## step-33: Delete 
+
+## unused files
+Remove-Item app\api\router.py
+Remove-Item -Recurse -Force app\api\routes
+
+## Delete Python cache folders
+Get-ChildItem app -Recurse -Directory -Filter "__pycache__" |
+    Remove-Item -Recurse -Force
+
+## Verify the structure:
+tree app /F
+
+## step-34: Add Safe CRUD API Tests:
+
+## Confirm testing packages
+uv add --dev pytest pytest-asyncio httpx
+uv sync
+
+## erify:
+uv run pytest --version
+pytest 9.1.1
+
+## Create: code tests\conftest.py
+from collections.abc import AsyncIterator
+
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from pymongo import AsyncMongoClient
+
+import app.repositories.application_repository as application_repository
+from app.core.config import settings
+from main import app
+
+
+TEST_DATABASE_NAME = "job_application_tracker_test"
+
+
+@pytest_asyncio.fixture
+async def test_database(
+    monkeypatch,
+) -> AsyncIterator[None]:
+    """
+    Connect the repository to a separate MongoDB test database.
+
+    The real job_application_tracker database is never changed.
+    """
+    client = AsyncMongoClient(settings.mongodb_url)
+    test_database = client[TEST_DATABASE_NAME]
+
+    monkeypatch.setattr(
+        application_repository,
+        "database",
+        test_database,
+    )
+
+    await test_database.drop_collection(
+        application_repository.COLLECTION_NAME
+    )
+
+    yield
+
+    await test_database.drop_collection(
+        application_repository.COLLECTION_NAME
+    )
+
+    await client.close()
+
+
+@pytest_asyncio.fixture
+async def client(
+    test_database,
+) -> AsyncIterator[AsyncClient]:
+    del test_database
+
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as async_client:
+        yield async_client
+
+## step-35: Create the CRUD tests
+code tests\test_applications.py
+
+from typing import Any
+
+import pytest
+from httpx import AsyncClient
+
+
+APPLICATION_PAYLOAD: dict[str, Any] = {
+    "company": "Microsoft",
+    "position": "AI Software Engineer",
+    "job_url": "https://careers.microsoft.com",
+    "location": "Redmond, WA",
+    "work_mode": "hybrid",
+    "status": "applied",
+    "applied_date": "2026-07-22",
+    "salary_range": "$140,000-$180,000",
+    "skills": [
+        "Python",
+        "FastAPI",
+        "MongoDB",
+        "Azure",
+        "Docker",
+        "Agentic AI",
+    ],
+    "job_description": (
+        "Develop AI-powered enterprise applications."
+    ),
+    "notes": "Applied through Microsoft Careers.",
+    "resume_version": "Full-Stack-AI-Resume-v1",
+}
+
+
+async def create_test_application(
+    client: AsyncClient,
+) -> dict[str, Any]:
+    response = await client.post(
+        "/api/v1/applications",
+        json=APPLICATION_PAYLOAD,
+    )
+
+    assert response.status_code == 201
+
+    return response.json()
+
+
+@pytest.mark.asyncio
+async def test_create_application(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/applications",
+        json=APPLICATION_PAYLOAD,
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["id"]
+    assert data["company"] == "Microsoft"
+    assert data["position"] == "AI Software Engineer"
+    assert data["status"] == "applied"
+    assert data["work_mode"] == "hybrid"
+    assert "Python" in data["skills"]
+    assert data["created_at"]
+    assert data["updated_at"]
+
+
+@pytest.mark.asyncio
+async def test_list_applications(
+    client: AsyncClient,
+) -> None:
+    created_application = await create_test_application(client)
+
+    response = await client.get(
+        "/api/v1/applications"
+    )
+
+    assert response.status_code == 200
+
+    applications = response.json()
+
+    assert len(applications) == 1
+    assert applications[0]["id"] == created_application["id"]
+    assert applications[0]["company"] == "Microsoft"
+
+
+@pytest.mark.asyncio
+async def test_get_application_by_id(
+    client: AsyncClient,
+) -> None:
+    created_application = await create_test_application(client)
+    application_id = created_application["id"]
+
+    response = await client.get(
+        f"/api/v1/applications/{application_id}"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == application_id
+    assert data["company"] == "Microsoft"
+    assert data["position"] == "AI Software Engineer"
+
+
+@pytest.mark.asyncio
+async def test_update_application(
+    client: AsyncClient,
+) -> None:
+    created_application = await create_test_application(client)
+    application_id = created_application["id"]
+
+    update_payload = {
+        "status": "interview",
+        "notes": "Initial HR interview scheduled.",
+    }
+
+    response = await client.patch(
+        f"/api/v1/applications/{application_id}",
+        json=update_payload,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == application_id
+    assert data["status"] == "interview"
+    assert data["notes"] == "Initial HR interview scheduled."
+    assert data["company"] == "Microsoft"
+
+
+@pytest.mark.asyncio
+async def test_delete_application(
+    client: AsyncClient,
+) -> None:
+    created_application = await create_test_application(client)
+    application_id = created_application["id"]
+
+    delete_response = await client.delete(
+        f"/api/v1/applications/{application_id}"
+    )
+
+    assert delete_response.status_code == 204
+
+    get_response = await client.get(
+        f"/api/v1/applications/{application_id}"
+    )
+
+    assert get_response.status_code == 404
+    assert get_response.json() == {
+        "detail": "Job application not found"
+    }
+
+
+@pytest.mark.asyncio
+async def test_invalid_application_id_returns_404(
+    client: AsyncClient,
+) -> None:
+    response = await client.get(
+        "/api/v1/applications/not-a-valid-object-id"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Job application not found"
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_application_validation_error(
+    client: AsyncClient,
+) -> None:
+    invalid_payload = {
+        "company": "",
+        "position": "",
+        "work_mode": "office",
+        "status": "unknown",
+    }
+
+    response = await client.post(
+        "/api/v1/applications",
+        json=invalid_payload,
+    )
+
+    assert response.status_code == 422
+
+## tree tests /F
+
+
+
+## Step-36: main.py
+from fastapi import FastAPI
+
+from app.api.router import api_router
+
+
+app = FastAPI(
+    title="AI Job Application Tracker",
+    description=(
+        "Full Stack Generative AI and Agentic AI "
+        "Job Application Tracking Platform"
+    ),
+    version="0.1.0",
+)
+
+
+app.include_router(
+    api_router,
+    prefix="/api/v1",
+)
+
+
+@app.get("/", tags=["Root"])
+async def root() -> dict[str, str]:
+    return {
+        "message": "AI Job Application Tracker API",
+        "status": "running",
+        "docs": "/docs",
+    }
+
+
+@app.get("/api/v1/health", tags=["Health"])
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "AI Job Application Tracker",
+        "database": "job_application_tracker",
+    }
+
+## New-Item -ItemType Directory -Path app\api\routes -Force | Out-Null
+## New-Item -ItemType File -Path app\api\__init__.py -Force | Out-Null
+## New-Item -ItemType File -Path app\api\routes\__init__.py -Force | Out-Null
+## code app\api\router.py
+
+from fastapi import APIRouter
+
+from app.api.routes.applications import router as applications_router
+
+
+api_router = APIRouter()
+api_router.include_router(applications_router)
+
+## New-Item -ItemType File -Path app\api\routes\applications.py -Force
+
+code app\api\routes\applications.py
+
+from fastapi import APIRouter, HTTPException, Query, Response, status
+
+from app.repositories.application_repository import (
+    create_application,
+    delete_application,
+    get_application,
+    list_applications,
+    update_application,
+)
+from app.schemas.application import (
+    JobApplicationCreate,
+    JobApplicationResponse,
+    JobApplicationUpdate,
+)
+
+router = APIRouter(
+    prefix="/applications",
+    tags=["Job Applications"],
+)
+
+
+@router.post(
+    "",
+    response_model=JobApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_job_application(
+    application: JobApplicationCreate,
+) -> JobApplicationResponse:
+    created = await create_application(application)
+    return JobApplicationResponse.model_validate(created)
+
+
+@router.get(
+    "",
+    response_model=list[JobApplicationResponse],
+)
+async def get_job_applications(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[JobApplicationResponse]:
+    applications = await list_applications(skip=skip, limit=limit)
+
+    return [
+        JobApplicationResponse.model_validate(application)
+        for application in applications
+    ]
+
+
+@router.get(
+    "/{application_id}",
+    response_model=JobApplicationResponse,
+)
+async def get_job_application(
+    application_id: str,
+) -> JobApplicationResponse:
+    application = await get_application(application_id)
+
+    if application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return JobApplicationResponse.model_validate(application)
+
+
+@router.patch(
+    "/{application_id}",
+    response_model=JobApplicationResponse,
+)
+async def update_job_application(
+    application_id: str,
+    application: JobApplicationUpdate,
+) -> JobApplicationResponse:
+    updated = await update_application(
+        application_id,
+        application,
+    )
+
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return JobApplicationResponse.model_validate(updated)
+
+
+@router.delete(
+    "/{application_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_job_application(
+    application_id: str,
+) -> Response:
+    deleted = await delete_application(application_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+## Verify
+Test-Path app\api\routes\applications.py
+
+## verify whether the main router exists:
+Test-Path app\api\router.py
+True
+
+## Test
+uv run python -c "from main import app; print(app.title)"
+
+## step-37: Update the repository class
+code app\repositories\application_repository.py
+
+from datetime import datetime, timezone
+from typing import Any
+
+from bson import ObjectId
+
+from app.database.mongodb import database
+from app.schemas.application import (
+    JobApplicationCreate,
+    JobApplicationUpdate,
+)
+
+
+class JobApplicationRepository:
+    def __init__(self) -> None:
+        self.collection = database["job_applications"]
+
+    @staticmethod
+    def serialize(document: dict[str, Any]) -> dict[str, Any]:
+        serialized = document.copy()
+        serialized["id"] = str(serialized.pop("_id"))
+        return serialized
+
+    async def create(
+        self,
+        application: JobApplicationCreate,
+    ) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+
+        document = application.model_dump(mode="json")
+        document["created_at"] = now
+        document["updated_at"] = now
+
+        result = await self.collection.insert_one(document)
+
+        created_application = await self.collection.find_one(
+            {"_id": result.inserted_id}
+        )
+
+        if created_application is None:
+            raise RuntimeError(
+                "The application was inserted but could not be retrieved."
+            )
+
+        return self.serialize(created_application)
+
+    async def get_all(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        applications: list[dict[str, Any]] = []
+
+        cursor = (
+            self.collection
+            .find()
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        async for application in cursor:
+            applications.append(self.serialize(application))
+
+        return applications
+
+    async def get_by_id(
+        self,
+        application_id: str,
+    ) -> dict[str, Any] | None:
+        if not ObjectId.is_valid(application_id):
+            return None
+
+        application = await self.collection.find_one(
+            {"_id": ObjectId(application_id)}
+        )
+
+        if application is None:
+            return None
+
+        return self.serialize(application)
+
+    async def update(
+        self,
+        application_id: str,
+        application: JobApplicationUpdate,
+    ) -> dict[str, Any] | None:
+        if not ObjectId.is_valid(application_id):
+            return None
+
+        update_data = application.model_dump(
+            mode="json",
+            exclude_unset=True,
+        )
+
+        if not update_data:
+            return await self.get_by_id(application_id)
+
+        update_data["updated_at"] = datetime.now(timezone.utc)
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(application_id)},
+            {"$set": update_data},
+        )
+
+        if result.matched_count == 0:
+            return None
+
+        return await self.get_by_id(application_id)
+
+    async def delete(
+        self,
+        application_id: str,
+    ) -> bool:
+        if not ObjectId.is_valid(application_id):
+            return False
+
+        result = await self.collection.delete_one(
+            {"_id": ObjectId(application_id)}
+        )
+
+        return result.deleted_count == 1
+
+
+job_application_repository = JobApplicationRepository()
+
+## step-37: Update the route file
+code app\api\routes\applications.py
+
+from fastapi import APIRouter, HTTPException, Query, Response, status
+
+from app.repositories.application_repository import (
+    job_application_repository,
+)
+from app.schemas.application import (
+    JobApplicationCreate,
+    JobApplicationResponse,
+    JobApplicationUpdate,
+)
+
+
+router = APIRouter(
+    prefix="/applications",
+    tags=["Job Applications"],
+)
+
+
+@router.post(
+    "",
+    response_model=JobApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_job_application(
+    application: JobApplicationCreate,
+) -> JobApplicationResponse:
+    created = await job_application_repository.create(application)
+
+    return JobApplicationResponse.model_validate(created)
+
+
+@router.get(
+    "",
+    response_model=list[JobApplicationResponse],
+)
+async def get_job_applications(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[JobApplicationResponse]:
+    applications = await job_application_repository.get_all(
+        skip=skip,
+        limit=limit,
+    )
+
+    return [
+        JobApplicationResponse.model_validate(application)
+        for application in applications
+    ]
+
+
+@router.get(
+    "/{application_id}",
+    response_model=JobApplicationResponse,
+)
+async def get_job_application(
+    application_id: str,
+) -> JobApplicationResponse:
+    application = await job_application_repository.get_by_id(
+        application_id
+    )
+
+    if application is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return JobApplicationResponse.model_validate(application)
+
+
+@router.patch(
+    "/{application_id}",
+    response_model=JobApplicationResponse,
+)
+async def update_job_application(
+    application_id: str,
+    application: JobApplicationUpdate,
+) -> JobApplicationResponse:
+    updated = await job_application_repository.update(
+        application_id,
+        application,
+    )
+
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return JobApplicationResponse.model_validate(updated)
+
+
+@router.delete(
+    "/{application_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_job_application(
+    application_id: str,
+) -> Response:
+    deleted = await job_application_repository.delete(application_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+## step-38: Verify the imports
+uv run python -c "from app.repositories.application_repository import job_application_repository; print(type(job_application_repository).__name__)"
+print(type(job_application_repository).__name__)"
+
+JobApplicationRepository
+
+## step-39: uv run python -c "from main import app; print(app.title)"
+AI Job Application Tracker
+
+## step-40: Test
+uv run pytest tests\test_applications.py -v
+
+## Update: code tests\conftest.py
+
+from collections.abc import AsyncIterator
+
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from pymongo import AsyncMongoClient
+
+from app.core.config import settings
+from app.repositories.application_repository import (
+    job_application_repository,
+)
+from main import app
+
+
+TEST_DATABASE_NAME = "job_application_tracker_test"
+TEST_COLLECTION_NAME = "job_applications"
+
+
+@pytest_asyncio.fixture
+async def test_database(
+    monkeypatch,
+) -> AsyncIterator[None]:
+    """
+    Connect the repository to a separate MongoDB test database.
+
+    The real job_application_tracker database is never changed.
+    """
+    client = AsyncMongoClient(settings.mongodb_url)
+    test_database = client[TEST_DATABASE_NAME]
+    test_collection = test_database[TEST_COLLECTION_NAME]
+
+    monkeypatch.setattr(
+        job_application_repository,
+        "collection",
+        test_collection,
+    )
+
+    await test_database.drop_collection(TEST_COLLECTION_NAME)
+
+    yield
+
+    await test_database.drop_collection(TEST_COLLECTION_NAME)
+    await client.close()
+
+
+@pytest_asyncio.fixture
+async def client(
+    test_database,
+) -> AsyncIterator[AsyncClient]:
+    del test_database
+
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as async_client:
+        yield async_client
+
+## 
+
+
