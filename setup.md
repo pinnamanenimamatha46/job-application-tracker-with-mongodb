@@ -313,9 +313,80 @@ This project is developed for learning, portfolio demonstration, and enterprise 
 **Thank you for visiting this project. If you find it useful, feel free to explore my other AI projects and connect with me on GitHub.**
 
 
-
-Create github project:    
+Ste-4: Create github project:    
 job-application-tracker-with-mongodb
+
+Step -5: Connect local to github
+
+git branch -M main
+git remote add origin https://github.com/pinnamanenimamatha46/job-application-tracker-with-mongodb.git
+git push -u origin main
+
+## Step - 6: create uv 
+
+uv init --app --python 3.11
+
+## Step-7: create env and activate it
+
+uv venv .venv --python 3.11
+.venv\Scripts\activate
+
+## Step - 8: Check versions:
+
+python --version    :   3.11.9
+uv --version        :   0.11.18
+node --version      :   24.15.0
+npm --version       :   11.12.1
+mongod --version    :   8.3.4
+Mongosh             :   2.9.2
+
+## step -9: Create C:\data\db
+mongod --dbpath C:\data\db
+New-Item -ItemType Directory -Path C:\data\db -Force
+mongosh
+test> 
+show dbs
+application connection string:
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DATABASE=job_application_tracker
+
+## step-10: install the project dependencies:
+uv add fastapi uvicorn motor pydantic-settings python-dotenv
+
+## step-11: create the initial folders:
+New-Item -ItemType Directory -Force `
+    app, `
+    app\api, `
+    app\api\v1, `
+    app\core, `
+    app\database, `
+    app\models, `
+    app\repositories, `
+    app\schemas, `
+    app\services, `
+    tests
+
+## step-12: Create the Python package files:
+
+## Build the configuration and MongoDB connection.
+
+## Step - 13: code app\core\config.py ## mangodb config file creation
+
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from app.core.config import settings
+
+
+client = AsyncIOMotorClient(settings.mongodb_url)
+
+database = client[settings.mongodb_database]
+
+
+
+
+
+
+
 
 
 
