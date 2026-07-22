@@ -1,0 +1,39 @@
+Clinical Documentation Improvement (CDI) Specialist
+
+Job Summary
+
+We are seeking a Clinical Documentation Improvement (CDI) Specialist with experience in healthcare documentation, Electronic Health Records (EHR), Epic, ICD-10 coding, physician collaboration, and clinical workflow optimization. The ideal candidate will work closely with physicians, HIM, coding teams, and clinical leadership to improve documentation quality, regulatory compliance, and reimbursement accuracy.
+
+Responsibilities
+
+- Review inpatient and outpatient medical records.
+- Identify documentation gaps and opportunities for clarification.
+- Collaborate with physicians to improve documentation quality.
+- Support ICD-10-CM coding accuracy.
+- Ensure compliance with CMS, Joint Commission, and organizational policies.
+- Participate in Epic optimization initiatives.
+- Assist with clinical workflow improvements.
+- Support HL7 and FHIR interoperability projects.
+- Participate in testing, validation, and go-live activities.
+- Prepare documentation quality reports and metrics.
+
+Required Qualifications
+
+- Clinical or healthcare background.
+- Experience with Clinical Documentation Improvement (CDI).
+- Experience with Epic Electronic Health Record.
+- Knowledge of ICD-10-CM, CPT, and medical terminology.
+- Experience working with physicians and HIM departments.
+- Understanding of healthcare workflows.
+- Knowledge of HL7 and FHIR.
+- Strong communication and analytical skills.
+
+Preferred Skills
+
+- Epic implementation or optimization experience.
+- Release and deployment support.
+- Clinical workflow analysis.
+- Regulatory compliance.
+- Microsoft Excel
+- Power BI
+- ServiceNow

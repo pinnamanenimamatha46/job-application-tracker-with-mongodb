@@ -1899,6 +1899,734 @@ async def client(
     ) as async_client:
         yield async_client
 
-## 
+## Run
+uv run pytest tests\test_applications.py -v
+7 passed in 0.27s
 
+## save in git
+
+## git add .
+## git commit -m "Add tested CRUD API for job applications"
+## git push origin main
+
+## Milestone completed ✅
+
+You now have:
+
+✅ FastAPI application
+✅ MongoDB integration
+✅ Repository layer
+✅ Pydantic schemas
+✅ CRUD REST API
+✅ Automated pytest suite (7/7 passing)
+✅ Separate MongoDB test database
+✅ Git commit ready
+
+## step-40: AI-powered Resume Matching.
+
+Job Description
+        │
+        ▼
+FastAPI Endpoint
+        │
+        ▼
+Resume Parser
+        │
+        ▼
+OpenAI GPT
+        │
+        ▼
+JSON Analysis
+        │
+        ├── Match Score
+        ├── Missing Skills
+        ├── Strengths
+        ├── Weaknesses
+        └── Resume Suggestions
+        │
+        ▼
+MongoDB
+
+## Install dependencies:
+uv add openai python-dotenv pypdf python-docx
+uv sync
+
+## Verify:
+uv run python -c "import openai,pypdf,docx;print('Packages installed successfully')"
+
+Packages installed successfull
+
+## Create the AI folder
+
+mkdir app\ai
+New-Item app\ai\__init__.py -ItemType File
+code app\ai\resume_matcher.py
+
+from pathlib import Path
+
+from docx import Document
+from pypdf import PdfReader
+
+
+SUPPORTED_RESUME_EXTENSIONS = {".pdf", ".docx", ".txt"}
+
+
+def extract_text_from_pdf(file_path: Path) -> str:
+    """Extract readable text from a PDF resume."""
+    reader = PdfReader(str(file_path))
+
+    pages: list[str] = []
+
+    for page in reader.pages:
+        page_text = page.extract_text()
+
+        if page_text:
+            pages.append(page_text.strip())
+
+    return "\n\n".join(pages).strip()
+
+
+def extract_text_from_docx(file_path: Path) -> str:
+    """Extract text from paragraphs and tables in a DOCX resume."""
+    document = Document(str(file_path))
+
+    sections: list[str] = []
+
+    for paragraph in document.paragraphs:
+        text = paragraph.text.strip()
+
+        if text:
+            sections.append(text)
+
+    for table in document.tables:
+        for row in table.rows:
+            values = [
+                cell.text.strip()
+                for cell in row.cells
+                if cell.text.strip()
+            ]
+
+            if values:
+                sections.append(" | ".join(values))
+
+    return "\n".join(sections).strip()
+
+
+def extract_text_from_txt(file_path: Path) -> str:
+    """Read text from a plain-text resume."""
+    return file_path.read_text(
+        encoding="utf-8",
+        errors="ignore",
+    ).strip()
+
+
+def extract_resume_text(file_path: str | Path) -> str:
+    """
+    Extract resume text from PDF, DOCX, or TXT.
+
+    Raises:
+        FileNotFoundError: When the resume file does not exist.
+        ValueError: When the file type is unsupported or contains no text.
+    """
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Resume file was not found: {path}"
+        )
+
+    extension = path.suffix.lower()
+
+    if extension not in SUPPORTED_RESUME_EXTENSIONS:
+        supported = ", ".join(
+            sorted(SUPPORTED_RESUME_EXTENSIONS)
+        )
+
+        raise ValueError(
+            f"Unsupported resume format: {extension}. "
+            f"Supported formats: {supported}"
+        )
+
+    if extension == ".pdf":
+        text = extract_text_from_pdf(path)
+    elif extension == ".docx":
+        text = extract_text_from_docx(path)
+    else:
+        text = extract_text_from_txt(path)
+
+    if not text:
+        raise ValueError(
+            "No readable text was found in the resume."
+        )
+
+    return text
+
+## .env
+OPENAI_API_KEY=your_openai_api_key_here
+
+## uv run python -c "import openai,pypdf,docx;print('Packages installed successfully')"
+Packages installed successfully
+
+## Verify:
+Test-Path app\ai\resume_matcher.py
+True
+
+## verify parser imports 
+uv run python -c "from app.ai.resume_matcher import extract_resume_text; print('Resume parser imported successfully')"
+Resume parser imported successfully
+
+## Test with a temporary text resume
+@"
+Mamatha Pinnamaneni
+Full Stack AI Developer
+
+Skills:
+Python, FastAPI, MongoDB, Docker, Generative AI
+"@ | Set-Content test_resume.txt
+
+## uv run python -c "from app.ai.resume_matcher import extract_resume_text; print(extract_resume_text('test_resume.txt'))"
+
+## Remove-Item test_resume.txt
+Remove-Item test_resume.txt
+
+## verify:
+Test-Path test_resume.txt
+
+## create add the AI analysis schema:
+code app\schemas\resume_analysis.py
+
+from pydantic import BaseModel, Field
+
+
+class ResumeAnalysis(BaseModel):
+    match_score: int = Field(ge=0, le=100)
+    matching_skills: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    summary: str
+
+## verify
+uv run python -c "from app.schemas.resume_analysis import ResumeAnalysis; print(ResumeAnalysis.model_fields.keys())"
+
+dict_keys(['match_score', 'matching_skills', 'missing_skills', 'strengths', 'weaknesses', 'recommendations', 'summary'])
+
+## step-41: create the AI resume-matching service:
+code app\ai\resume_matcher.py
+
+## code app\services\resume_parser.py
+
+from pathlib import Path
+
+from docx import Document
+from pypdf import PdfReader
+
+
+SUPPORTED_RESUME_EXTENSIONS = {".pdf", ".docx", ".txt"}
+
+
+def extract_text_from_pdf(file_path: Path) -> str:
+    """Extract readable text from a PDF resume."""
+    reader = PdfReader(str(file_path))
+    pages: list[str] = []
+
+    for page in reader.pages:
+        page_text = page.extract_text()
+
+        if page_text:
+            pages.append(page_text.strip())
+
+    return "\n\n".join(pages).strip()
+
+
+def extract_text_from_docx(file_path: Path) -> str:
+    """Extract text from paragraphs and tables in a DOCX resume."""
+    document = Document(str(file_path))
+    sections: list[str] = []
+
+    for paragraph in document.paragraphs:
+        text = paragraph.text.strip()
+
+        if text:
+            sections.append(text)
+
+    for table in document.tables:
+        for row in table.rows:
+            values = [
+                cell.text.strip()
+                for cell in row.cells
+                if cell.text.strip()
+            ]
+
+            if values:
+                sections.append(" | ".join(values))
+
+    return "\n".join(sections).strip()
+
+
+def extract_text_from_txt(file_path: Path) -> str:
+    """Read text from a plain-text resume."""
+    return file_path.read_text(
+        encoding="utf-8",
+        errors="ignore",
+    ).strip()
+
+
+def extract_resume_text(file_path: str | Path) -> str:
+    """
+    Extract resume text from PDF, DOCX, or TXT.
+
+    Raises:
+        FileNotFoundError: When the resume does not exist.
+        ValueError: When the format is unsupported or contains no text.
+    """
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Resume file was not found: {path}"
+        )
+
+    if not path.is_file():
+        raise ValueError(
+            f"Resume path is not a file: {path}"
+        )
+
+    extension = path.suffix.lower()
+
+    if extension not in SUPPORTED_RESUME_EXTENSIONS:
+        supported = ", ".join(
+            sorted(SUPPORTED_RESUME_EXTENSIONS)
+        )
+
+        raise ValueError(
+            f"Unsupported resume format: {extension}. "
+            f"Supported formats: {supported}"
+        )
+
+    if extension == ".pdf":
+        text = extract_text_from_pdf(path)
+    elif extension == ".docx":
+        text = extract_text_from_docx(path)
+    else:
+        text = extract_text_from_txt(path)
+
+    if not text:
+        raise ValueError(
+            "No readable text was found in the resume."
+        )
+
+    return text
+
+## code app\services\resume_analysis_service.py
+
+import os
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+from app.schemas.resume_analysis import ResumeAnalysis
+
+
+load_dotenv()
+
+
+def get_openai_client() -> OpenAI:
+    """Create an OpenAI client using the environment API key."""
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is missing. Add it to the .env file."
+        )
+
+    return OpenAI(api_key=api_key)
+
+
+def analyze_resume_match(
+    resume_text: str,
+    job_description: str,
+) -> ResumeAnalysis:
+    """Compare resume text with a job description using AI."""
+    cleaned_resume = resume_text.strip()
+    cleaned_job_description = job_description.strip()
+
+    if not cleaned_resume:
+        raise ValueError("Resume text cannot be empty.")
+
+    if not cleaned_job_description:
+        raise ValueError("Job description cannot be empty.")
+
+    client = get_openai_client()
+
+    response = client.responses.parse(
+        model="gpt-4.1-mini",
+        input=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert technical recruiter and ATS resume "
+                    "analyst. Compare the candidate's resume with the job "
+                    "description. Be accurate and do not invent experience."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "RESUME:\n"
+                    f"{cleaned_resume}\n\n"
+                    "JOB DESCRIPTION:\n"
+                    f"{cleaned_job_description}"
+                ),
+            },
+        ],
+        text_format=ResumeAnalysis,
+    )
+
+    analysis = response.output_parsed
+
+    if analysis is None:
+        raise RuntimeError(
+            "The AI response could not be parsed."
+        )
+
+    return analysis
+
+## Verify imports
+uv run python -c "from app.services.resume_parser import extract_resume_text; from app.services.resume_analysis_service import analyze_resume_match; print('Resume services imported successfully')"
+Resume services imported successfully
+
+## Step-42: Create the resume analysis API endpoint:
+
+## Create the request schema
+code app\schemas\resume_request.py
+
+from pydantic import BaseModel, Field
+
+
+class ResumeAnalysisRequest(BaseModel):
+    resume_text: str = Field(
+        min_length=1,
+        description="Extracted resume text.",
+    )
+    job_description: str = Field(
+        min_length=1,
+        description="Job description to compare with the resume.",
+    )
+
+## Step-43: Create the resume analysis route
+
+code app\api\v1\resume_analysis.py
+
+from fastapi import APIRouter, HTTPException, status
+from openai import OpenAIError
+
+from app.schemas.resume_analysis import ResumeAnalysis
+from app.schemas.resume_request import ResumeAnalysisRequest
+from app.services.resume_analysis_service import analyze_resume_match
+
+
+router = APIRouter(
+    prefix="/resume-analysis",
+    tags=["Resume Analysis"],
+)
+
+
+@router.post(
+    "",
+    response_model=ResumeAnalysis,
+    status_code=status.HTTP_200_OK,
+)
+def analyze_resume(
+    request: ResumeAnalysisRequest,
+) -> ResumeAnalysis:
+    """Compare resume text with a job description."""
+    try:
+        return analyze_resume_match(
+            resume_text=request.resume_text,
+            job_description=request.job_description,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except OpenAIError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The AI service could not complete the analysis.",
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+## Add router: code main.py
+
+
+from fastapi import FastAPI
+
+from app.api.router import api_router
+
+app = FastAPI(
+    title="AI Job Application Tracker",
+    description=(
+        "Full Stack Generative AI and Agentic AI "
+        "Job Application Tracking Platform"
+    ),
+    version="0.1.0",
+)
+
+# Register all API routes
+app.include_router(
+    api_router,
+    prefix="/api/v1",
+)
+
+
+@app.get("/", tags=["Root"])
+async def root() -> dict[str, str]:
+    return {
+        "message": "Welcome to the AI Job Application Tracker API",
+        "status": "running",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+    }
+
+
+@app.get("/api/v1/health", tags=["Health"])
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "AI Job Application Tracker",
+        "database": "job_application_tracker",
+    }
+
+## Verify
+uv run uvicorn main:app --reload
+
+## Test the Root Endpoint
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/"
+
+message  : Welcome to the AI Job Application Tracker API
+status   : running
+version  : 0.1.0
+docs     : /docs
+openapi  : /openapi.json
+
+## Test the Health Endpoint
+Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/health"
+
+status    : ok
+service   : AI Job Application Tracker
+database  : job_application_tracker
+
+## step-44: AI Resume Analysis API
+
+## Create a new route:
+mkdir app\api\routes\resume
+New-Item app\api\routes\resume\__init__.py -ItemType File
+code app\api\routes\resume.py
+
+from fastapi import APIRouter
+
+router = APIRouter(
+    prefix="/resume",
+    tags=["Resume AI"],
+)
+
+
+@router.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "Resume AI",
+    }
+
+## update app/api/router.py to include the new router:
+code app/api/router.py
+
+from fastapi import APIRouter
+
+from app.api.routes.applications import router as applications_router
+from app.api.routes.resume import router as resume_router
+
+api_router = APIRouter()
+
+api_router.include_router(applications_router)
+api_router.include_router(resume_router)
+
+## Restart your FastAPI server and open:
+uv run uvicorn main:app --reload
+
+## delete the duplicate resume folder
+Remove-Item -Recurse -Force app\api\routes\resume
+## tree app\api\routes /F
+
+## run: Get-Content app\api\routes\resume.py
+
+
+## Step-45: Implement the AI Resume Analysis Endpoint:
+
+## Create the request model
+
+## code app/schemas/resume_request.py
+
+from pydantic import BaseModel, Field
+
+
+class ResumeAnalysisRequest(BaseModel):
+    resume_path: str = Field(
+        ...,
+        description="Path to the resume file",
+    )
+    job_description: str = Field(
+        ...,
+        min_length=20,
+        description="Job description text",
+    )
+
+## Update app/api/routes/resume.py
+
+from fastapi import APIRouter, HTTPException
+
+from app.ai.resume_matcher import (
+    analyze_resume_match,
+    extract_resume_text,
+)
+from app.schemas.resume_analysis import ResumeAnalysis
+from app.schemas.resume_request import ResumeAnalysisRequest
+
+router = APIRouter(
+    prefix="/resume",
+    tags=["Resume AI"],
+)
+
+
+@router.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "Resume AI",
+    }
+
+
+@router.post(
+    "/analyze",
+    response_model=ResumeAnalysis,
+)
+async def analyze_resume(
+    request: ResumeAnalysisRequest,
+) -> ResumeAnalysis:
+    try:
+        resume_text = extract_resume_text(
+            request.resume_path
+        )
+
+        return analyze_resume_match(
+            resume_text=resume_text,
+            job_description=request.job_description,
+        )
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+## Restart FastAPI
+
+## Step-44: End-to-End AI Test
+
+## create sample_resume.txt
+
+Anita Kotha
+anita.kotha@Gmail.com
+
+________________________________________
+PROFESSIONAL SUMMARY
+Foreign Medical Graduate with extensive healthcare and health IT experience, specializing in Electronic Health Record (EHR) implementation, Epic deployment, clinical workflow optimization, and healthcare transformation initiatives. Experienced in collaborating with physicians, nurses, clinical leadership, and technical teams to implement and support Epic applications across hospital and ambulatory care settings. Strong understanding of clinical operations, patient care workflows, healthcare regulations, and interoperability standards. Proven ability to bridge the gap between clinical and technical stakeholders, drive user adoption, support go-live activities, and deliver successful EHR implementations that improve operational efficiency, documentation quality, and patient outcomes.
+PROFESSIONAL EXPERIENCE
+Release and Deployment Consultant iV
+Kaiser Permanente California
+January 2006 – May 2026
+•	Collaborated with physicians, CDI specialists, HIM teams, and IT staff to improve documentation quality and coding accuracy.
+•	Supported Epic EHR optimization projects, resulting in a 20% reduction in documentation deficiencies.
+•	Designed and implemented documentation workflows aligned with regulatory and reimbursement requirements.
+•	Facilitated HL7 interface testing and validation between EHR, laboratory, and radiology systems.
+•	Conducted user training sessions for providers and clinical staff regarding documentation best practices.
+•	Served as a liaison between business stakeholders and Epic technical teams, ensuring code changes and system enhancements were thoroughly validated and approved before production deployment. 
+•	 Led end-to-end validation of Epic build and configuration changes, coordinating testing, defect resolution, and release activities to support successful production implementations with minimal post-go-live issues. 
+•	 Managed release validation processes for Epic applications, ensuring compliance with change control procedures and maintaining system stability across multiple environments.
+Kaiser Permanente, California
+Release and Deployment Consultant III
+June 2016 – December 2019
+•	Participated in enterprise-wide EHR implementation and integration projects.
+•	Gathered business and clinical requirements from stakeholders across multiple departments.
+•	Created workflow diagrams and functional specifications for clinical documentation enhancements.
+•	Assisted in FHIR and HL7 data mapping activities for external healthcare systems.
+•	Supported testing, issue resolution, and go-live activities.
+•	Improved provider adoption through training and workflow optimization initiatives.
+
+Business Consultant Lead
+Kaiser Permanente, California
+August 2012 – May 2016
+•	Reviewed clinical documentation for completeness, accuracy, and compliance.
+•	Worked with physicians to clarify diagnoses and documentation gaps.
+•	Supported ICD-10 transition efforts and coding quality initiatives.
+•	Maintained documentation compliance with CMS and Joint Commission standards.
+Business Consultant Senior
+May 2006- May 2016
+•	Led Epic deployment activities for a multi-hospital healthcare system serving 10,000+ providers and 5M+ patients. 
+•	Directed cross-functional teams through planning, testing, training, cutover, and go-live phases of Epic implementation. 
+•	Managed deployment schedules, risk mitigation strategies, and stakeholder communications for enterprise EHR transformation initiatives. 
+•	Oversaw command center operations during go-live, achieving 98% issue resolution within established service-level agreements. 
+•	Improved provider adoption rates by implementing targeted training and workflow optimization programs. 
+•	Coordinated enterprise data conversion and integration efforts involving 100+ interfaces and legacy clinical applications.
+Voluntary experience
+Millcreek community Hospital , Erie PA
+Completed a 12-month rotating internship, where I took patient histories, reviewed lab results, diagnosed conditions, and prescribed medications under physician supervision.
+
+________________________________________
+EDUCATION
+Bachelor of Medicine and Bachelor of Surgery ( M.B.B.S)
+Dr BM Patil’s BLDE A’s Medical College
+MBA (Business Administration)
+University of Phoenix- California
+
+________________________________________
+
+
+
+TECHNICAL SKILLS
+EHR Platforms
+•	Epic
+•	Citrix
+
+Healthcare Standards
+•	HL7 v2/v3
+•	FHIR
+•	ICD-10-CM
+•	CPT
+Tools
+•	Microsoft office 
+•	Microsoft Excel
+•	Power BI
+•	Share point
+•	ServiceNow
+•	UI Path Automation
+
+
+
+
+
+
+## step-45:
 

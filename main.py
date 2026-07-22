@@ -2,7 +2,6 @@ from fastapi import FastAPI
 
 from app.api.router import api_router
 
-
 app = FastAPI(
     title="AI Job Application Tracker",
     description=(
@@ -12,7 +11,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-
+# Register all API routes
 app.include_router(
     api_router,
     prefix="/api/v1",
@@ -22,9 +21,11 @@ app.include_router(
 @app.get("/", tags=["Root"])
 async def root() -> dict[str, str]:
     return {
-        "message": "AI Job Application Tracker API",
+        "message": "Welcome to the AI Job Application Tracker API",
         "status": "running",
+        "version": "0.1.0",
         "docs": "/docs",
+        "openapi": "/openapi.json",
     }
 
 
