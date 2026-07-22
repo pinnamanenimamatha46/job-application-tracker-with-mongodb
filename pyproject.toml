@@ -9,5 +9,5 @@ dependencies = [
     "motor>=3.7.1",
     "pydantic-settings>=2.14.2",
     "python-dotenv>=1.2.2",
-    "uvicorn>=0.51.0",
+    "uvicorn[standard]>=0.51.0",
 ]
