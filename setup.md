@@ -2623,10 +2623,371 @@ Tools
 •	ServiceNow
 •	UI Path Automation
 
+## cmd: type nul > sample_resume.txt
+
+## dir sample_resume.txt
+
+## type sample_resume.txt
+
+## python -c "from pathlib import Path; p=Path('sample_resume.txt'); t=p.read_text(encoding='utf-8'); t=t.replace('ΓÇô','-').replace('ΓÇó','-').replace('ΓÇÖ',\"'\"); p.write_text(t, encoding='utf-8')"
 
 
 
 
+## type sample_job_description.txt
 
-## step-45:
+## notepad sample_job_description.txt
 
+Clinical Documentation Improvement (CDI) Specialist
+
+Job Summary
+
+We are seeking a Clinical Documentation Improvement (CDI) Specialist with experience in healthcare documentation, Electronic Health Records (EHR), Epic, ICD-10 coding, physician collaboration, and clinical workflow optimization. The ideal candidate will work closely with physicians, HIM, coding teams, and clinical leadership to improve documentation quality, regulatory compliance, and reimbursement accuracy.
+
+Responsibilities
+
+- Review inpatient and outpatient medical records.
+- Identify documentation gaps and opportunities for clarification.
+- Collaborate with physicians to improve documentation quality.
+- Support ICD-10-CM coding accuracy.
+- Ensure compliance with CMS, Joint Commission, and organizational policies.
+- Participate in Epic optimization initiatives.
+- Assist with clinical workflow improvements.
+- Support HL7 and FHIR interoperability projects.
+- Participate in testing, validation, and go-live activities.
+- Prepare documentation quality reports and metrics.
+
+Required Qualifications
+
+- Clinical or healthcare background.
+- Experience with Clinical Documentation Improvement (CDI).
+- Experience with Epic Electronic Health Record.
+- Knowledge of ICD-10-CM, CPT, and medical terminology.
+- Experience working with physicians and HIM departments.
+- Understanding of healthcare workflows.
+- Knowledge of HL7 and FHIR.
+- Strong communication and analytical skills.
+
+Preferred Skills
+
+- Epic implementation or optimization experience.
+- Release and deployment support.
+- Clinical workflow analysis.
+- Regulatory compliance.
+- Microsoft Excel
+- Power BI
+- ServiceNow
+
+## type sample_job_description.txt
+
+## step-45:test your AI Resume Matcher.
+
+## Verify both files exist
+dir sample_resume.txt sample_job_description.txt
+
+## notepad test_resume_matcher.py
+from pathlib import Path
+
+from app.ai.resume_matcher import analyze_resume_match
+
+resume_text = Path("sample_resume.txt").read_text(encoding="utf-8")
+job_description = Path("sample_job_description.txt").read_text(encoding="utf-8")
+
+result = analyze_resume_match(
+    resume_text=resume_text,
+    job_description=job_description,
+)
+
+print(result)
+
+## test
+uv run python test_resume_matcher.py
+
+
+## step-46: create the FastAPI resume-analysis endpoint
+
+## code app\api\routes\resume.py
+
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from app.ai.resume_matcher import ResumeAnalysis, analyze_resume_match
+
+router = APIRouter(
+    prefix="/resume",
+    tags=["Resume AI"],
+)
+
+
+class ResumeMatchRequest(BaseModel):
+    resume_text: str = Field(min_length=1)
+    job_description: str = Field(min_length=1)
+
+
+@router.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "Resume AI",
+    }
+
+
+@router.post("/analyze", response_model=ResumeAnalysis)
+async def analyze_resume(
+    request: ResumeMatchRequest,
+) -> ResumeAnalysis:
+    try:
+        return analyze_resume_match(
+            resume_text=request.resume_text,
+            job_description=request.job_description,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Resume analysis failed.",
+        ) from exc
+
+## verify the application imports:
+uv run python -c "from main import app; print([getattr(route, 'path', type(route).__name__) for route in app.routes])"
+
+## type app\api\router.py
+
+## uv run uvicorn main:app --reload
+
+## Test the health endpoint
+Click Try it out.
+Click Execute.
+
+You should receive a response similar to:
+
+{
+  "status": "ok",
+  "service": "Resume AI"
+}
+## Test the AI resume analysis
+
+POST /api/v1/resume/analyze
+try it out
+
+Replace the example JSON with:
+{
+  "resume_text": "Healthcare technology professional with experience in Clinical Documentation Improvement, Epic EHR implementation, ICD-10-CM, physician collaboration, clinical workflow optimization, HL7, FHIR, CMS compliance, Joint Commission standards, Power BI, Microsoft Excel, ServiceNow, testing, training, validation, and go-live support.",
+  "job_description": "We are seeking a Clinical Documentation Improvement Specialist with experience reviewing medical records, collaborating with physicians and HIM teams, improving documentation quality, supporting ICD-10 and CPT coding accuracy, working with Epic EHR, preparing documentation reports and metrics, and following CMS and Joint Commission requirements."
+}
+Click Execute.
+
+## step-47: Test with full files automatically:
+
+## code test_resume_api.py       
+from pathlib import Path
+
+import httpx
+
+API_URL = "http://127.0.0.1:8000/api/v1/resume/analyze"
+
+resume_text = Path("sample_resume.txt").read_text(encoding="utf-8")
+job_description = Path("sample_job_description.txt").read_text(
+    encoding="utf-8"
+)
+
+payload = {
+    "resume_text": resume_text,
+    "job_description": job_description,
+}
+
+try:
+    response = httpx.post(
+        API_URL,
+        json=payload,
+        timeout=120.0,
+    )
+    response.raise_for_status()
+except httpx.HTTPError as exc:
+    print(f"API request failed: {exc}")
+else:
+    result = response.json()
+
+    print(f"Match score: {result['match_score']}%")
+    print("\nMatching skills:")
+    for skill in result["matching_skills"]:
+        print(f"- {skill}")
+
+    print("\nMissing skills:")
+    for skill in result["missing_skills"]:
+        print(f"- {skill}")
+
+    print("\nRecommendations:")
+    for recommendation in result["recommendations"]:
+        print(f"- {recommendation}")
+
+    print("\nSummary:")
+    print(result["summary"])
+
+## Run
+uv run python test_resume_api.py
+
+Text files
+   ↓
+HTTP request
+   ↓
+FastAPI endpoint
+   ↓
+OpenAI resume matcher
+   ↓
+Structured JSON response
+
+## complete resume-analysis workflow is now working end to end.
+
+You verified:
+
+The text files load correctly.
+The HTTP client reaches FastAPI.
+FastAPI calls the OpenAI resume matcher.
+The response is validated by ResumeAnalysis.
+The API returns structured JSON.
+The full CDI resume receives a 95% match score.
+
+## step-48: git
+
+## git add .
+## git commit -m "Add AI resume matching API"
+## git push origin main
+
+## step-49 : add direct PDF/DOCX upload analysis.
+
+## uv add python-multipart
+
+## code app\api\routes\resume.py
+
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
+
+from app.ai.resume_matcher import (
+    ResumeAnalysis,
+    analyze_resume_match,
+    extract_resume_text,
+)
+
+router = APIRouter(
+    prefix="/resume",
+    tags=["Resume AI"],
+)
+
+
+class ResumeMatchRequest(BaseModel):
+    resume_text: str = Field(min_length=1)
+    job_description: str = Field(min_length=1)
+
+
+@router.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "Resume AI",
+    }
+
+
+@router.post("/analyze", response_model=ResumeAnalysis)
+async def analyze_resume(
+    request: ResumeMatchRequest,
+) -> ResumeAnalysis:
+    try:
+        return analyze_resume_match(
+            resume_text=request.resume_text,
+            job_description=request.job_description,
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Resume analysis failed.",
+        ) from exc
+
+
+@router.post("/upload-analyze", response_model=ResumeAnalysis)
+async def upload_and_analyze_resume(
+    resume_file: UploadFile = File(...),
+    job_description: str = Form(...),
+) -> ResumeAnalysis:
+    filename = resume_file.filename or ""
+
+    suffix = Path(filename).suffix.lower()
+
+    if suffix not in {".pdf", ".docx"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and DOCX resume files are supported.",
+        )
+
+    try:
+        file_content = await resume_file.read()
+
+        if not file_content:
+            raise HTTPException(
+                status_code=400,
+                detail="The uploaded resume file is empty.",
+            )
+
+        with NamedTemporaryFile(
+            delete=False,
+            suffix=suffix,
+        ) as temporary_file:
+            temporary_file.write(file_content)
+            temporary_path = Path(temporary_file.name)
+
+        resume_text = extract_resume_text(temporary_path)
+
+        return analyze_resume_match(
+            resume_text=resume_text,
+            job_description=job_description,
+        )
+
+    except HTTPException:
+        raise
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Resume upload analysis failed.",
+        ) from exc
+    finally:
+        if "temporary_path" in locals():
+            temporary_path.unlink(missing_ok=True)
+
+## verify that extract_resume_text:
+
+## Select-String -Path app\ai\resume_matcher.py -Pattern "def extract_resume_text"
+
+
+
+## run
+uv run python -c "from main import app; print('\n'.join(app.openapi()['paths'].keys()))"
+
+## Restrt server
+uv run uvicorn main:app --reload
+POST /api/v1/resume/upload-analyze
+
+## step-49: git
+
+git status
+git add .
+git commit -m "Add AI resume upload and job matching API"
+git status
